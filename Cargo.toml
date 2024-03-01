@@ -1,0 +1,22 @@
+[package]
+name = "core-video-rs"
+description = "Rust wrapper for apple's CoreVideo framework"
+categories = [
+  "external-ffi-bindings",
+  "multimedia",
+  "multimedia::video",
+  "os::macos-apis",
+]
+authors = ["Per Johansson <mail@perjohansson.net>"]
+repository = "https://github.com/svtlabs/core-video-rs"
+homepage = "https://github.com/svtlabs"
+rust-version = "1.72"
+license = "MIT OR Apache-2.0"
+
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+core-foundation = "0.9"
