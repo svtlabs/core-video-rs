@@ -19,9 +19,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-
 core-foundation = "0.9"
 core-graphics = "0.23"
 core-utils-rs = { path = "../core-utils-rs" }
 four-char-code = { version = "2", default-features = false }
 io-surface = { version = "0.15" }
+thiserror = "1"
