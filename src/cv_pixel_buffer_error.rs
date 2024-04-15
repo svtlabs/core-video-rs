@@ -1,7 +1,7 @@
 use core_foundation::base::OSStatus;
 use thiserror::Error;
 
-pub const NO_ERROR: OSStatus = 0;
+pub const CV_RETURN_SUCCESS: OSStatus = 0;
 
 // General errors
 

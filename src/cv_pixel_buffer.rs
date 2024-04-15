@@ -1,5 +1,5 @@
 mod internal {
-    use crate::cv_pixel_buffer_error::{CVPixelBufferError, NO_ERROR};
+    use crate::cv_pixel_buffer_error::{CVPixelBufferError, CV_RETURN_SUCCESS};
     use crate::types::{CVOptionFlags, CVReturn, OSType};
     use core_foundation::base::{
         kCFAllocatorDefault, Boolean, CFAllocatorRef, CFNullRef, CFTypeID, TCFType,
@@ -55,15 +55,15 @@ mod internal {
             width: usize,
             height: usize,
             pixelFormatType: OSType,
-            dataPtr: *mut *mut c_void,
-            dataSize: *mut usize,
+            dataPtr: Option<&mut [u8]>,
+            dataSize: Option<usize>,
             numberOfPlanes: usize,
-            planeBaseAddress: *mut *mut c_void,
-            planeWidth: *mut usize,
-            planeHeight: *mut usize,
-            planeBytesPerRow: *mut usize,
+            planeBaseAddress: &[&mut [u8]],
+            planeWidth: &[usize],
+            planeHeight: &[usize],
+            planeBytesPerRow: &[usize],
             releaseCallback: CVPixelBufferReleaseBytesCallback,
-            releaseRefCon: *mut c_void,
+            releaseRefCon: *mut TrampolineRefCon,
             pixelBufferAttributes: CFDictionaryRef,
             pixelBufferOut: *mut CVPixelBufferRef,
         ) -> CVReturn;
@@ -141,55 +141,111 @@ mod internal {
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
-            if result == NO_ERROR {
+            if result == CV_RETURN_SUCCESS {
                 Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
             } else {
                 Err(CVPixelBufferError::from(result))
             }
         }
     }
-    pub fn create_with_bytes<TRefCon, TMakeDataReadyCallback>(
+
+    pub fn create_with_bytes<TRefCon, TReleaseCallback>(
         width: usize,
         height: usize,
         pixel_format_type: FourCharCode,
-        base_address: *mut c_void,
+        base_address: &mut [u8],
         bytes_per_row: usize,
-        release_callback: TMakeDataReadyCallback,
+        release_callback: TReleaseCallback,
         release_ref_con: TRefCon,
         pixel_buffer_attributes: CFDictionaryRef,
     ) -> Result<CVPixelBuffer, CVPixelBufferError>
     where
         TRefCon: Sized,
-        TMakeDataReadyCallback: FnMut(TRefCon, *mut c_void) -> Result<(), CVPixelBufferError>,
-        TMakeDataReadyCallback: Send + 'static,
+        TReleaseCallback: FnMut(TRefCon, *mut c_void) -> Result<(), CVPixelBufferError>,
+        TReleaseCallback: Send + 'static,
     {
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
+        if base_address.len() < bytes_per_row * height {
+            return Err(CVPixelBufferError::InvalidSize);
+        }
         unsafe {
             let result = CVPixelBufferCreateWithBytes(
                 kCFAllocatorDefault,
                 width,
                 height,
                 pixel_format_type.as_u32(),
-                base_address,
+                base_address.as_mut_ptr().cast(),
                 bytes_per_row,
-                trampoline_reversed::<
-                    *mut c_void,
-                    CVPixelBufferError,
-                    TRefCon,
-                    TMakeDataReadyCallback,
-                >,
+                trampoline_reversed::<*mut c_void, CVPixelBufferError, TRefCon, TReleaseCallback>,
                 TrampolineRefCon::new(Some(release_ref_con), release_callback)
                     .into_leaked_mut_ptr(),
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
-            if result == NO_ERROR {
+            if result == CV_RETURN_SUCCESS {
                 Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
             } else {
                 Err(CVPixelBufferError::from(result))
             }
         }
     }
+
+    pub fn create_with_bytes_planar<TRefCon, TReleaseCallback>(
+        width: usize,
+        height: usize,
+        pixel_format_type: FourCharCode,
+        data_ptr: Option<&mut [u8]>,
+        data_size: Option<usize>,
+        number_of_planes: usize,
+        plane_base_addresses: &mut [&mut [u8]],
+        plane_width: &[usize],
+        plane_height: &[usize],
+        plane_bytes_per_row: &[usize],
+        release_callback: TReleaseCallback,
+        release_ref_con: TRefCon,
+        pixel_buffer_attributes: CFDictionaryRef,
+    ) -> Result<CVPixelBuffer, CVPixelBufferError>
+    where
+        TRefCon: Sized,
+        TReleaseCallback: FnMut(TRefCon, *mut c_void) -> Result<(), CVPixelBufferError>,
+        TReleaseCallback: Send + 'static,
+    {
+        let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
+
+        if plane_base_addresses.len() < number_of_planes
+            || plane_width.len() < number_of_planes
+            || plane_height.len() < number_of_planes
+            || plane_bytes_per_row.len() < number_of_planes
+        {
+            return Err(CVPixelBufferError::InvalidSize);
+        }
+        unsafe {
+            let result = CVPixelBufferCreateWithPlanarBytes(
+                kCFAllocatorDefault,
+                width,
+                height,
+                pixel_format_type.as_u32(),
+                data_ptr,
+                data_size,
+                number_of_planes,
+                plane_base_addresses,
+                plane_width,
+                plane_height,
+                plane_bytes_per_row,
+                trampoline_reversed::<*mut c_void, CVPixelBufferError, TRefCon, TReleaseCallback>,
+                TrampolineRefCon::new(Some(release_ref_con), release_callback)
+                    .into_leaked_mut_ptr(),
+                pixel_buffer_attributes,
+                &mut pixel_buffer_out,
+            );
+            if result == CV_RETURN_SUCCESS {
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+            } else {
+                Err(CVPixelBufferError::from(result))
+            }
+        }
+    }
+
     #[cfg(test)]
     mod test {
         #[test]
@@ -220,14 +276,52 @@ mod internal {
         fn test_create_with_bytes() -> Result<(), crate::cv_pixel_buffer_error::CVPixelBufferError>
         {
             use super::*;
+            let buffer = &mut vec![0];
+            buffer.resize(1920 * 1080 * 2, 0);
             let pixel_buffer = create_with_bytes(
                 1920,
                 1080,
                 FourCharCode::from_str("2vuy").unwrap(),
-                ptr::null_mut(),
+                buffer.as_mut(),
                 1920 * 2,
-                |_: *mut c_void, _| Ok(()),
-                ptr::null_mut(),
+                |_: (), _| Ok(()),
+                (),
+                ptr::null(),
+            )?;
+            assert_eq!(
+                unsafe { CVPixelBufferGetWidth(pixel_buffer.as_concrete_TypeRef()) },
+                1920
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetHeight(pixel_buffer.as_concrete_TypeRef()) },
+                1080
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetPixelFormatType(pixel_buffer.as_concrete_TypeRef()) },
+                FourCharCode::from_str("2vuy").unwrap().as_u32()
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn test_create_with_bytes_planar(
+        ) -> Result<(), crate::cv_pixel_buffer_error::CVPixelBufferError> {
+            use super::*;
+            let buffer = &mut vec![0];
+            buffer.resize(1920 * 1080 * 2, 0);
+            let pixel_buffer = create_with_bytes_planar(
+                1920,
+                1080,
+                FourCharCode::from_str("2vuy").unwrap(),
+                None,
+                None,
+                1,
+                &mut [buffer],
+                &[1920],
+                &[1080],
+                &[1920 * 2],
+                |_: (), _| Ok(()),
+                (),
                 ptr::null(),
             )?;
             assert_eq!(
