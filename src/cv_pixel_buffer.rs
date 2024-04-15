@@ -21,7 +21,7 @@ mod internal {
     impl_TCFType!(CVPixelBuffer, CVPixelBufferRef, CVPixelBufferGetTypeID);
 
     type CVPixelBufferReleaseBytesCallback =
-        extern "C" fn(releaseRefCon: *mut TrampolineRefCon, baseAddress: *mut c_void);
+        unsafe extern "C" fn(releaseRefCon: *mut TrampolineRefCon, baseAddress: *mut c_void);
 
     #[link(name = "CoreVideo", kind = "framework")]
     extern "C" {
@@ -45,7 +45,7 @@ mod internal {
             baseAddress: *mut c_void,
             bytesPerRow: usize,
             releaseCallback: CVPixelBufferReleaseBytesCallback,
-            releaseRefCon: *mut c_void,
+            releaseRefCon: *mut TrampolineRefCon,
             pixelBufferAttributes: CFDictionaryRef,
             pixelBufferOut: *mut CVPixelBufferRef,
         ) -> CVReturn;
@@ -154,7 +154,7 @@ mod internal {
         pixel_format_type: FourCharCode,
         base_address: *mut c_void,
         bytes_per_row: usize,
-        release_callback: CVPixelBufferReleaseBytesCallback,
+        release_callback: TMakeDataReadyCallback,
         release_ref_con: TRefCon,
         pixel_buffer_attributes: CFDictionaryRef,
     ) -> Result<CVPixelBuffer, CVPixelBufferError>
@@ -174,11 +174,12 @@ mod internal {
                 bytes_per_row,
                 trampoline_reversed::<
                     *mut c_void,
-                    TRefCon,
                     CVPixelBufferError,
+                    TRefCon,
                     TMakeDataReadyCallback,
                 >,
-                release_ref_con,
+                TrampolineRefCon::new(Some(release_ref_con), release_callback)
+                    .into_leaked_mut_ptr(),
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
@@ -198,6 +199,35 @@ mod internal {
                 1920,
                 1080,
                 FourCharCode::from_str("2vuy").unwrap(),
+                ptr::null(),
+            )?;
+            assert_eq!(
+                unsafe { CVPixelBufferGetWidth(pixel_buffer.as_concrete_TypeRef()) },
+                1920
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetHeight(pixel_buffer.as_concrete_TypeRef()) },
+                1080
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetPixelFormatType(pixel_buffer.as_concrete_TypeRef()) },
+                FourCharCode::from_str("2vuy").unwrap().as_u32()
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn test_create_with_bytes() -> Result<(), crate::cv_pixel_buffer_error::CVPixelBufferError>
+        {
+            use super::*;
+            let pixel_buffer = create_with_bytes(
+                1920,
+                1080,
+                FourCharCode::from_str("2vuy").unwrap(),
+                ptr::null_mut(),
+                1920 * 2,
+                |_: *mut c_void, _| Ok(()),
+                ptr::null_mut(),
                 ptr::null(),
             )?;
             assert_eq!(
