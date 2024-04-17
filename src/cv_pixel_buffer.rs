@@ -1,12 +1,12 @@
 mod internal {
+    #![allow(dead_code)]
+    #![allow(clippy::too_many_arguments)]
     use crate::cv_pixel_buffer_error::{CVPixelBufferError, CV_RETURN_SUCCESS};
     use crate::types::{CVOptionFlags, CVReturn, OSType};
-    use core_foundation::base::{
-        kCFAllocatorDefault, Boolean, CFAllocatorRef, CFNullRef, CFTypeID, TCFType,
-    };
+    use core_foundation::base::{kCFAllocatorDefault, Boolean, CFAllocatorRef, CFTypeID, TCFType};
     use core_foundation::dictionary::CFDictionaryRef;
     use core_foundation::{declare_TCFType, impl_TCFType};
-    use core_utils_rs::ref_con::{cf_trampoline, trampoline_reversed, RefCon, TrampolineRefCon};
+    use core_utils_rs::ref_con::{trampoline_reversed, TrampolineRefCon};
     use four_char_code::FourCharCode;
     use io_surface::IOSurfaceRef;
     use std::ffi::c_void;
@@ -55,13 +55,13 @@ mod internal {
             width: usize,
             height: usize,
             pixelFormatType: OSType,
-            dataPtr: Option<&mut [u8]>,
-            dataSize: Option<usize>,
+            dataPtr: *mut c_void,
+            dataSize: usize,
             numberOfPlanes: usize,
-            planeBaseAddress: &[&mut [u8]],
-            planeWidth: &[usize],
-            planeHeight: &[usize],
-            planeBytesPerRow: &[usize],
+            planeBaseAddresses: *const *mut u8,
+            planeWidth: *const usize,
+            planeHeight: *const usize,
+            planeBytesPerRow: *const usize,
             releaseCallback: CVPixelBufferReleaseBytesCallback,
             releaseRefCon: *mut TrampolineRefCon,
             pixelBufferAttributes: CFDictionaryRef,
@@ -197,7 +197,7 @@ mod internal {
         data_ptr: Option<&mut [u8]>,
         data_size: Option<usize>,
         number_of_planes: usize,
-        plane_base_addresses: &mut [&mut [u8]],
+        plane_base_addresses: &[&mut [u8]],
         plane_width: &[usize],
         plane_height: &[usize],
         plane_bytes_per_row: &[usize],
@@ -225,13 +225,13 @@ mod internal {
                 width,
                 height,
                 pixel_format_type.as_u32(),
-                data_ptr,
-                data_size,
+                data_ptr.map_or(ptr::null_mut(), |v| v.as_mut_ptr().cast()),
+                data_size.map_or(0, |v| v),
                 number_of_planes,
-                plane_base_addresses,
-                plane_width,
-                plane_height,
-                plane_bytes_per_row,
+                plane_base_addresses.as_ptr().cast(),
+                plane_width.as_ptr(),
+                plane_height.as_ptr(),
+                plane_bytes_per_row.as_ptr(),
                 trampoline_reversed::<*mut c_void, CVPixelBufferError, TRefCon, TReleaseCallback>,
                 TrampolineRefCon::new(Some(release_ref_con), release_callback)
                     .into_leaked_mut_ptr(),
@@ -316,7 +316,7 @@ mod internal {
                 None,
                 None,
                 1,
-                &mut [buffer],
+                &[buffer],
                 &[1920],
                 &[1080],
                 &[1920 * 2],
