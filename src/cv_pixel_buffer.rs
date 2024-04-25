@@ -8,7 +8,7 @@ mod internal {
     use core_utils_rs::ref_con::{ClosureCaller, ClosurePointer, VoidTrampoline};
     use four_char_code::FourCharCode;
     use std::ffi::c_void;
-    use std::ptr::{self, null_mut};
+    use std::ptr::{self};
 
     #[repr(C)]
     pub struct __CVPixelBufferRef(c_void);
