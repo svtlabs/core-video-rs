@@ -8,7 +8,10 @@ mod internal {
     use core_utils_rs::ref_con::{ClosureCaller, ClosurePointer, VoidTrampoline};
     use four_char_code::FourCharCode;
     use std::ffi::c_void;
-    use std::ptr::{self};
+    use std::marker::PhantomPinned;
+    use std::mem::ManuallyDrop;
+    use std::ops::Deref;
+    use std::ptr::{self, NonNull};
 
     #[repr(C)]
     pub struct __CVPixelBufferRef(c_void);
@@ -99,6 +102,63 @@ mod internal {
         }
     }
 
+    pub struct PlanarDataPointer<'a> {
+        data: Option<Vec<u8>>,
+        number_of_planes: usize,
+        plane_bytes_per_row: &'a [usize],
+        plane_width: &'a [usize],
+        plane_height: &'a [usize],
+        base_addresses: &'a [NonNull<[u8]>],
+        _pin: PhantomPinned,
+    }
+
+    impl PlanarDataPointer<'_> {
+        pub fn new<'a>(
+            data: Option<Vec<u8>>,
+            plane_bytes_per_row: &'a [usize],
+            plane_width: &'a [usize],
+            plane_height: &'a [usize],
+            base_addresses: &'a [NonNull<[u8]>],
+        ) -> PlanarDataPointer<'a> {
+            PlanarDataPointer {
+                data,
+                number_of_planes: base_addresses.len(),
+                plane_bytes_per_row,
+                plane_width,
+                plane_height,
+                base_addresses,
+                _pin: PhantomPinned,
+            }
+        }
+        fn number_of_planes(&self) -> usize {
+            self.number_of_planes
+        }
+        fn as_ptr(&self) -> *mut u8 {
+            self.data
+                .as_ref()
+                .map(|v| v.as_ptr())
+                .unwrap_or(ptr::null_mut())
+                .cast_mut()
+        }
+
+        fn data_len(&self) -> usize {
+            self.data.as_ref().map(|v| v.len()).unwrap_or(0)
+        }
+
+        fn raw_base_addresses(&self) -> *const *const u8 {
+            self.base_addresses.as_ptr().cast()
+        }
+        fn plane_bytes_per_row(&self) -> *const usize {
+            self.plane_bytes_per_row.as_ptr()
+        }
+        fn plane_width(&self) -> *const usize {
+            self.plane_width.as_ptr()
+        }
+        fn plane_height(&self) -> *const usize {
+            self.plane_height.as_ptr()
+        }
+    }
+
     #[link(name = "CoreVideo", kind = "framework")]
     extern "C" {
         static kCVPixelFormatType_32BGRA: [u8; 4];
@@ -114,6 +174,7 @@ mod internal {
             pixelBufferAttributes: CFDictionaryRef,
             pixelBufferOut: *mut CVPixelBufferRef,
         ) -> CVReturn;
+
         fn CVPixelBufferCreateWithBytes(
             allocator: CFAllocatorRef,
             width: usize,
@@ -127,6 +188,59 @@ mod internal {
             pixel_buffer_out: *mut CVPixelBufferRef,
         ) -> CVReturn;
 
+        fn CVPixelBufferCreateWithPlanarBytes(
+            allocator: CFAllocatorRef,
+            width: usize,
+            height: usize,
+            pixel_format_type: OSType,
+            data_ptr: *mut u8,
+            data_size: usize,
+            number_of_planes: usize,
+            base_addresses: *const *const u8,
+            plane_width: *const usize,
+            plane_height: *const usize,
+            plane_bytes_per_row: *const usize,
+            release_callback: Option<ClosureCaller>,
+            release_ref_con: ClosurePointer,
+            pixel_buffer_attributes: CFDictionaryRef,
+            pixel_buffer_out: *mut CVPixelBufferRef,
+        ) -> CVReturn;
+
+    }
+    pub fn create_with_planar_bytes(
+        width: usize,
+        height: usize,
+        pixel_format_type: FourCharCode,
+        data_pointer: ManuallyDrop<PlanarDataPointer>,
+        pixel_buffer_attributes: CFDictionaryRef,
+    ) -> Result<CVPixelBuffer, CVPixelBufferError> {
+        let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
+
+        unsafe {
+            let result = CVPixelBufferCreateWithPlanarBytes(
+                kCFAllocatorDefault,
+                width,
+                height,
+                pixel_format_type.as_u32(),
+                data_pointer.as_ptr(),
+                data_pointer.data_len(),
+                data_pointer.number_of_planes,
+                data_pointer.raw_base_addresses(),
+                data_pointer.plane_width(),
+                data_pointer.plane_height(),
+                data_pointer.plane_bytes_per_row(),
+                None,
+                ptr::null(),
+                pixel_buffer_attributes,
+                &mut pixel_buffer_out,
+            );
+
+            if result == CV_RETURN_SUCCESS {
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+            } else {
+                Err(CVPixelBufferError::from(result))
+            }
+        }
     }
     pub fn create_with_bytes(
         width: usize,
@@ -210,6 +324,30 @@ mod internal {
         }
     }
 
+    fn create(
+        width: usize,
+        height: usize,
+        pixel_format_type: FourCharCode,
+        pixel_buffer_attributes: CFDictionaryRef,
+    ) -> Result<CVPixelBuffer, CVPixelBufferError> {
+        let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
+        unsafe {
+            let result = CVPixelBufferCreate(
+                kCFAllocatorDefault,
+                width,
+                height,
+                pixel_format_type.as_u32(),
+                pixel_buffer_attributes,
+                &mut pixel_buffer_out,
+            );
+            if result == CV_RETURN_SUCCESS {
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+            } else {
+                Err(CVPixelBufferError::from(result))
+            }
+        }
+    }
+
     #[cfg(test)]
     mod test {
         use std::error::Error;
@@ -219,6 +357,55 @@ mod internal {
         const HEIGHT: usize = 100;
         const SIZE: usize = WIDTH * HEIGHT * 4;
         const PIXEL_VALUE: u8 = 0xF2;
+
+        #[test]
+        fn test_create() -> Result<(), Box<dyn Error>> {
+            use super::*;
+            let pixel_buffer = create(
+                WIDTH,
+                HEIGHT,
+                FourCharCode::from_str("BGRA").unwrap(),
+                ptr::null(),
+            )?;
+            assert_eq!(
+                unsafe { CVPixelBufferGetWidth(pixel_buffer.as_concrete_TypeRef()) },
+                WIDTH
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetHeight(pixel_buffer.as_concrete_TypeRef()) },
+                HEIGHT
+            );
+            Ok(())
+        }
+
+        #[test]
+        fn test_create_with_planar_bytes() -> Result<(), Box<dyn Error>> {
+            use super::*;
+            let data = vec![PIXEL_VALUE; SIZE];
+            let base_address = NonNull::from(data.as_slice());
+            let pixel_buffer = create_with_planar_bytes(
+                WIDTH,
+                HEIGHT,
+                FourCharCode::from_str("BGRA").unwrap(),
+                ManuallyDrop::new(PlanarDataPointer::new(
+                    Some(data),
+                    &[BYTE_PER_ROW, BYTE_PER_ROW],
+                    &[WIDTH, WIDTH],
+                    &[HEIGHT, HEIGHT],
+                    &[base_address, base_address],
+                )),
+                ptr::null(),
+            )?;
+            assert_eq!(
+                unsafe { CVPixelBufferGetWidth(pixel_buffer.as_concrete_TypeRef()) },
+                WIDTH
+            );
+            assert_eq!(
+                unsafe { CVPixelBufferGetHeight(pixel_buffer.as_concrete_TypeRef()) },
+                HEIGHT
+            );
+            Ok(())
+        }
 
         #[test]
         fn test_create_with_bytes_and_release() -> Result<(), Box<dyn Error>> {
