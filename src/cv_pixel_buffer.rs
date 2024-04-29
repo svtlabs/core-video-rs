@@ -211,7 +211,7 @@ mod internal {
         width: usize,
         height: usize,
         pixel_format_type: FourCharCode,
-        data_pointer: ManuallyDrop<PlanarDataPointer>,
+        data_pointer: PlanarDataPointer,
         pixel_buffer_attributes: CFDictionaryRef,
     ) -> Result<CVPixelBuffer, CVPixelBufferError> {
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
@@ -387,13 +387,13 @@ mod internal {
                 WIDTH,
                 HEIGHT,
                 FourCharCode::from_str("BGRA").unwrap(),
-                ManuallyDrop::new(PlanarDataPointer::new(
+                PlanarDataPointer::new(
                     Some(data),
                     &[BYTE_PER_ROW, BYTE_PER_ROW],
                     &[WIDTH, WIDTH],
                     &[HEIGHT, HEIGHT],
                     &[base_address, base_address],
-                )),
+                ),
                 ptr::null(),
             )?;
             assert_eq!(
