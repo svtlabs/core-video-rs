@@ -9,10 +9,7 @@ mod internal {
     use four_char_code::FourCharCode;
     use std::ffi::c_void;
     use std::marker::PhantomPinned;
-    use std::mem::ManuallyDrop;
-    use std::ops::Deref;
     use std::ptr::{self, NonNull};
-    use std::sync::Arc;
 
     #[repr(C)]
     pub struct __CVPixelBufferRef(c_void);
