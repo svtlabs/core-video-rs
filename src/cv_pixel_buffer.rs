@@ -12,6 +12,7 @@ mod internal {
     use std::mem::ManuallyDrop;
     use std::ops::Deref;
     use std::ptr::{self, NonNull};
+    use std::sync::Arc;
 
     #[repr(C)]
     pub struct __CVPixelBufferRef(c_void);
@@ -102,24 +103,24 @@ mod internal {
         }
     }
 
-    pub struct PlanarDataPointer<'a> {
+    pub struct PlanarDataPointer {
         data: Option<Vec<u8>>,
         number_of_planes: usize,
-        plane_bytes_per_row: &'a [usize],
-        plane_width: &'a [usize],
-        plane_height: &'a [usize],
-        base_addresses: &'a [NonNull<[u8]>],
+        plane_bytes_per_row: Vec<usize>,
+        plane_width: Vec<usize>,
+        plane_height: Vec<usize>,
+        base_addresses: Vec<NonNull<[u8]>>,
         _pin: PhantomPinned,
     }
 
-    impl PlanarDataPointer<'_> {
-        pub fn new<'a>(
+    impl PlanarDataPointer {
+        pub fn new(
             data: Option<Vec<u8>>,
-            plane_bytes_per_row: &'a [usize],
-            plane_width: &'a [usize],
-            plane_height: &'a [usize],
-            base_addresses: &'a [NonNull<[u8]>],
-        ) -> PlanarDataPointer<'a> {
+            plane_bytes_per_row: Vec<usize>,
+            plane_width: Vec<usize>,
+            plane_height: Vec<usize>,
+            base_addresses: Vec<NonNull<[u8]>>,
+        ) -> PlanarDataPointer {
             PlanarDataPointer {
                 data,
                 number_of_planes: base_addresses.len(),
@@ -207,28 +208,42 @@ mod internal {
         ) -> CVReturn;
 
     }
-    pub fn create_with_planar_bytes(
+    pub fn create_with_planar_bytes_and_release_callback<TRefCon, TReleaseCallback>(
         width: usize,
         height: usize,
         pixel_format_type: FourCharCode,
         data_pointer: PlanarDataPointer,
+        mut release_callback: TReleaseCallback,
+        release_ref_con: TRefCon,
         pixel_buffer_attributes: CFDictionaryRef,
-    ) -> Result<CVPixelBuffer, CVPixelBufferError> {
+    ) -> Result<CVPixelBuffer, CVPixelBufferError>
+    where
+        TRefCon: 'static,
+        TReleaseCallback: FnMut(TRefCon, PlanarDataPointer) + 'static,
+    {
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
-
+        let data_size = data_pointer.data_len();
+        let data_ptr = data_pointer.as_ptr();
+        let number_of_planes = data_pointer.number_of_planes();
+        let base_addresses = data_pointer.raw_base_addresses();
+        let plane_width = data_pointer.plane_width();
+        let plane_height = data_pointer.plane_height();
+        let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
+        let trampoline =
+            VoidTrampoline::new(move || release_callback(release_ref_con, data_pointer));
         unsafe {
             let result = CVPixelBufferCreateWithPlanarBytes(
                 kCFAllocatorDefault,
                 width,
                 height,
                 pixel_format_type.as_u32(),
-                data_pointer.as_ptr(),
-                data_pointer.data_len(),
-                data_pointer.number_of_planes,
-                data_pointer.raw_base_addresses(),
-                data_pointer.plane_width(),
-                data_pointer.plane_height(),
-                data_pointer.plane_bytes_per_row(),
+                data_ptr,
+                data_size,
+                number_of_planes,
+                base_addresses,
+                plane_width,
+                plane_height,
+                plane_bytes_per_row,
                 None,
                 ptr::null(),
                 pixel_buffer_attributes,
@@ -236,7 +251,9 @@ mod internal {
             );
 
             if result == CV_RETURN_SUCCESS {
-                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+                let mut pixel_buffer = CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out);
+                pixel_buffer.store_trampoline(trampoline);
+                Ok(pixel_buffer)
             } else {
                 Err(CVPixelBufferError::from(result))
             }
@@ -383,17 +400,19 @@ mod internal {
             use super::*;
             let data = vec![PIXEL_VALUE; SIZE];
             let base_address = NonNull::from(data.as_slice());
-            let pixel_buffer = create_with_planar_bytes(
+            let pixel_buffer = create_with_planar_bytes_and_release_callback(
                 WIDTH,
                 HEIGHT,
                 FourCharCode::from_str("BGRA").unwrap(),
                 PlanarDataPointer::new(
                     Some(data),
-                    &[BYTE_PER_ROW, BYTE_PER_ROW],
-                    &[WIDTH, WIDTH],
-                    &[HEIGHT, HEIGHT],
-                    &[base_address, base_address],
+                    vec![BYTE_PER_ROW, BYTE_PER_ROW],
+                    vec![WIDTH, WIDTH],
+                    vec![HEIGHT, HEIGHT],
+                    vec![base_address, base_address],
                 ),
+                |_, _| {},
+                (),
                 ptr::null(),
             )?;
             assert_eq!(
