@@ -139,7 +139,7 @@ mod internal {
                 .cast_mut()
         }
 
-        fn data_len(&self) -> usize {
+        fn data_size(&self) -> usize {
             self.data.as_ref().map(|v| v.len()).unwrap_or(0)
         }
 
@@ -216,18 +216,26 @@ mod internal {
     ) -> Result<CVPixelBuffer, CVPixelBufferError>
     where
         TRefCon: 'static,
-        TReleaseCallback: FnMut(TRefCon, PlanarDataPointer) + 'static,
+        TReleaseCallback:
+            FnMut(TRefCon, Option<Vec<u8>>, usize, usize, Vec<NonNull<[u8]>>) + 'static,
     {
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
-        let data_size = data_pointer.data_len();
+        let data_size = data_pointer.data_size();
         let data_ptr = data_pointer.as_ptr();
         let number_of_planes = data_pointer.number_of_planes();
         let base_addresses = data_pointer.raw_base_addresses();
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let trampoline =
-            VoidTrampoline::new(move || release_callback(release_ref_con, data_pointer));
+        let trampoline = VoidTrampoline::new(move || {
+            release_callback(
+                release_ref_con,
+                data_pointer.data,
+                data_size,
+                number_of_planes,
+                data_pointer.base_addresses,
+            )
+        });
         unsafe {
             let result = CVPixelBufferCreateWithPlanarBytes(
                 kCFAllocatorDefault,
@@ -241,8 +249,8 @@ mod internal {
                 plane_width,
                 plane_height,
                 plane_bytes_per_row,
-                None,
-                ptr::null(),
+                Some(trampoline.caller),
+                trampoline.as_code_ptr(),
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
@@ -393,9 +401,10 @@ mod internal {
         }
 
         #[test]
-        fn test_create_with_planar_bytes() -> Result<(), Box<dyn Error>> {
+        fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
             use super::*;
             let data = vec![PIXEL_VALUE; SIZE];
+            let expected_Data = data.clone();
             let base_address = NonNull::from(data.as_slice());
             let pixel_buffer = create_with_planar_bytes_and_release_callback(
                 WIDTH,
@@ -408,7 +417,13 @@ mod internal {
                     vec![HEIGHT, HEIGHT],
                     vec![base_address, base_address],
                 ),
-                |_, _| {},
+                move |refcon, data, size, num, base| {
+                    println!("Release callback called:{:?} {:?} {:?} ", refcon, size, num);
+                    assert_eq!(size, SIZE);
+                    assert_eq!(num, 2);
+                    assert_eq!(data.unwrap(), expected_Data);
+                    assert_eq!(base.len(), 2);
+                },
                 (),
                 ptr::null(),
             )?;
@@ -420,6 +435,7 @@ mod internal {
                 unsafe { CVPixelBufferGetHeight(pixel_buffer.as_concrete_TypeRef()) },
                 HEIGHT
             );
+            drop(pixel_buffer);
             Ok(())
         }
 
