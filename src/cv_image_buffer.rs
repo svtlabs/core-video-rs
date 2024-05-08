@@ -27,7 +27,7 @@ mod internal {
         fn CVImageBufferCreateColorSpaceFromAttachments(
             attachments: CFDictionaryRef,
         ) -> CGColorSpaceRef;
-        fn CVColorPrimariesGetIntegerCodePointForString(primaries: CFStringRef) -> i32;
+        fn CVColorPrimariesGetIntegerCodePointForString(primaries: CFStringReaf) -> i32;
         fn CVColorPrimariesGetStringForIntegerCodePoint(code_point: i32) -> CFStringRef;
         fn CVTransferFunctionGetIntegerCodePointForString(transfer_punction: CFStringRef) -> i32;
         fn CVTransferFunctionGetStringForIntegerCodePoint(codePoint: i32) -> CFStringRef;
