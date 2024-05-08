@@ -585,6 +585,8 @@ mod internal {
                 (),
                 ptr::null(),
             )?;
+            assert_eq!(get_width(&pixel_buffer), WIDTH);
+            assert_eq!(get_height(&pixel_buffer), HEIGHT);
             Ok(())
         }
 
