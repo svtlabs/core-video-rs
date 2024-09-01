@@ -5,7 +5,8 @@ mod internal {
     use crate::types::{CVReturn, OSType};
     use core_foundation::base::{kCFAllocatorDefault, CFAllocatorRef, CFTypeID, TCFType};
     use core_foundation::dictionary::CFDictionaryRef;
-    use core_utils_rs::ref_con::{ClosureCaller, ClosurePointer, VoidTrampoline};
+    use core_foundation::{declare_TCFType, impl_TCFType};
+    use core_utils_rs::ref_con::{trampoline, ClosureCaller, ClosurePointer};
     use four_char_code::FourCharCode;
     use io_surface::IOSurfaceRef;
     use std::ffi::c_void;
@@ -17,89 +18,8 @@ mod internal {
 
     pub type CVPixelBufferRef = *mut __CVPixelBufferRef;
 
-    pub struct CVPixelBuffer(CVPixelBufferRef, Vec<VoidTrampoline>);
-
-    impl Drop for CVPixelBuffer {
-        fn drop(&mut self) {
-            unsafe { core_foundation::base::CFRelease(self.as_CFTypeRef()) }
-        }
-    }
-
-    unsafe impl core_foundation::ConcreteCFType for CVPixelBuffer {}
-    impl core_foundation::base::TCFType for CVPixelBuffer {
-        type Ref = CVPixelBufferRef;
-
-        #[inline]
-        fn as_concrete_TypeRef(&self) -> CVPixelBufferRef {
-            self.0
-        }
-
-        #[inline]
-        fn as_CFTypeRef(&self) -> core_foundation::base::CFTypeRef {
-            self.as_concrete_TypeRef() as core_foundation::base::CFTypeRef
-        }
-
-        #[inline]
-        unsafe fn wrap_under_get_rule(reference: CVPixelBufferRef) -> Self {
-            assert!(!reference.is_null(), "Attempted to create a NULL object.");
-            let reference =
-                core_foundation::base::CFRetain(reference as *const ::std::os::raw::c_void)
-                    as CVPixelBufferRef;
-            core_foundation::base::TCFType::wrap_under_create_rule(reference)
-        }
-
-        #[inline]
-        unsafe fn wrap_under_create_rule(reference: CVPixelBufferRef) -> Self {
-            assert!(!reference.is_null(), "Attempted to create a NULL object.");
-            CVPixelBuffer(reference, Vec::new())
-        }
-
-        fn type_id() -> CFTypeID {
-            unsafe { CVPixelBufferGetTypeID() }
-        }
-    }
-
-    impl Clone for CVPixelBuffer {
-        #[inline]
-        fn clone(&self) -> CVPixelBuffer {
-            unsafe { CVPixelBuffer::wrap_under_get_rule(self.0) }
-        }
-    }
-
-    impl PartialEq for CVPixelBuffer {
-        #[inline]
-        fn eq(&self, other: &CVPixelBuffer) -> bool {
-            self.as_CFType().eq(&other.as_CFType())
-        }
-    }
-
-    impl Eq for CVPixelBuffer {}
-
-    unsafe impl<'a> core_foundation::base::ToVoid<CVPixelBuffer> for &'a CVPixelBuffer {
-        fn to_void(&self) -> *const ::std::os::raw::c_void {
-            use core_foundation::base::TCFTypeRef;
-            self.as_concrete_TypeRef().as_void_ptr()
-        }
-    }
-
-    unsafe impl core_foundation::base::ToVoid<CVPixelBuffer> for CVPixelBuffer {
-        fn to_void(&self) -> *const ::std::os::raw::c_void {
-            use core_foundation::base::TCFTypeRef;
-            self.as_concrete_TypeRef().as_void_ptr()
-        }
-    }
-
-    unsafe impl core_foundation::base::ToVoid<CVPixelBuffer> for CVPixelBufferRef {
-        fn to_void(&self) -> *const ::std::os::raw::c_void {
-            use core_foundation::base::TCFTypeRef;
-            self.as_void_ptr()
-        }
-    }
-    impl CVPixelBuffer {
-        fn store_trampoline(&mut self, trampoline: VoidTrampoline) {
-            self.1.push(trampoline);
-        }
-    }
+    declare_TCFType! {CVPixelBuffer, CVPixelBufferRef}
+    impl_TCFType!(CVPixelBuffer, CVPixelBufferRef, CVPixelBufferGetTypeID);
 
     pub struct CVPixelBufferPlanarDataPointer {
         data: Option<Vec<u8>>,
@@ -179,7 +99,7 @@ mod internal {
             pixel_format_type: OSType,
             base_address: *const u8,
             bytes_per_row: usize,
-            raw_release_callback: Option<ClosureCaller>,
+            raw_release_callback: ClosureCaller,
             raw_release_ref_con: ClosurePointer,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
@@ -197,7 +117,7 @@ mod internal {
             plane_width: *const usize,
             plane_height: *const usize,
             plane_bytes_per_row: *const usize,
-            release_callback: Option<ClosureCaller>,
+            release_callback: ClosureCaller,
             release_ref_con: ClosurePointer,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
@@ -226,31 +146,32 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        unsafe {
-            let result = CVPixelBufferCreateWithPlanarBytes(
-                kCFAllocatorDefault,
-                width,
-                height,
-                pixel_format_type.as_u32(),
-                data_ptr,
-                data_size,
-                number_of_planes,
-                base_addresses,
-                plane_width,
-                plane_height,
-                plane_bytes_per_row,
-                None,
-                ptr::null(),
-                pixel_buffer_attributes,
-                &mut pixel_buffer_out,
-            );
-
-            if result == CV_RETURN_SUCCESS {
-                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
-            } else {
-                Err(CVPixelBufferError::from(result))
-            }
-        }
+        todo!();
+        // unsafe {
+        //     let result = CVPixelBufferCreateWithPlanarBytes(
+        //         kCFAllocatorDefault,
+        //         width,
+        //         height,
+        //         pixel_format_type.as_u32(),
+        //         data_ptr,
+        //         data_size,
+        //         number_of_planes,
+        //         base_addresses,
+        //         plane_width,
+        //         plane_height,
+        //         plane_bytes_per_row,
+        //         None,
+        //         None,
+        //         pixel_buffer_attributes,
+        //         &mut pixel_buffer_out,
+        //     );
+        //
+        //     if result == CV_RETURN_SUCCESS {
+        //         Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+        //     } else {
+        //         Err(CVPixelBufferError::from(result))
+        //     }
+        // }
     }
     pub fn create_with_planar_bytes_and_release_callback<TRefCon, TReleaseCallback>(
         width: usize,
@@ -274,7 +195,7 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let trampoline = VoidTrampoline::new(move || {
+        let (caller, closure) = trampoline(move || {
             release_callback(
                 release_ref_con,
                 data_pointer.data,
@@ -296,16 +217,14 @@ mod internal {
                 plane_width,
                 plane_height,
                 plane_bytes_per_row,
-                Some(trampoline.caller),
-                trampoline.as_code_ptr(),
+                caller,
+                closure,
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
 
             if result == CV_RETURN_SUCCESS {
-                let mut pixel_buffer = CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out);
-                pixel_buffer.store_trampoline(trampoline);
-                Ok(pixel_buffer)
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
             } else {
                 Err(CVPixelBufferError::from(result))
             }
@@ -323,9 +242,12 @@ mod internal {
             return Err(CVPixelBufferError::InvalidSize);
         }
 
+
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-
+        let (caller, closure) = trampoline(move || {
+            println!("Release callback called");
+        });
         unsafe {
             let result = CVPixelBufferCreateWithBytes(
                 kCFAllocatorDefault,
@@ -334,8 +256,8 @@ mod internal {
                 pixel_format_type.as_u32(),
                 base_address_ptr,
                 bytes_per_row,
-                None,
-                ptr::null(),
+                caller,
+                closure,
                 pixel_buffer_attributes,
                 &mut pixel_buffer_out,
             );
@@ -367,30 +289,28 @@ mod internal {
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
 
-        let trampoline =
-            VoidTrampoline::new(move || release_callback(release_ref_con, base_address));
-
-        unsafe {
-            let result = CVPixelBufferCreateWithBytes(
-                kCFAllocatorDefault,
-                width,
-                height,
-                pixel_format_type.as_u32(),
-                base_address_ptr,
-                bytes_per_row,
-                Some(trampoline.caller),
-                trampoline.as_code_ptr(),
-                pixel_buffer_attributes,
-                &mut pixel_buffer_out,
-            );
-            if result == CV_RETURN_SUCCESS {
-                let mut pixel_buffer = CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out);
-                pixel_buffer.store_trampoline(trampoline);
-                Ok(pixel_buffer)
-            } else {
-                Err(CVPixelBufferError::from(result))
-            }
-        }
+        todo!();
+        // unsafe {
+        //     let result = CVPixelBufferCreateWithBytes(
+        //         kCFAllocatorDefault,
+        //         width,
+        //         height,
+        //         pixel_format_type.as_u32(),
+        //         base_address_ptr,
+        //         bytes_per_row,
+        //         trampoline.caller,
+        //         trampoline.closure,
+        //         pixel_buffer_attributes,
+        //         &mut pixel_buffer_out,
+        //     );
+        //     if result == CV_RETURN_SUCCESS {
+        //         let mut px = CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out);
+        //         px.store_trampoline(trampoline);
+        //         Ok(px)
+        //     } else {
+        //         Err(CVPixelBufferError::from(result))
+        //     }
+        // }
     }
     fn create_with_io_surface(
         surface: IOSurfaceRef,
@@ -617,13 +537,30 @@ mod internal {
         #[test]
         fn test_create_with_bytes() -> Result<(), Box<dyn Error>> {
             use super::*;
+            // Create pixel buffer attributes
+            let pixel_buffer_attributes = {
+                CFDictionary::from_CFType_pairs(&[
+                    (
+                        CFString::from_static_string("IOSurfaceOpenGLESTextureCompatibility"),
+                        CFNumber::from(1).as_CFType(),
+                    ),
+                    (
+                        CFString::from_static_string("IOSurfaceOpenGLESFBOCompatibility"),
+                        CFNumber::from(1).as_CFType(),
+                    ),
+                    (
+                        CFString::from_static_string("IOSurfaceCoreAnimationCompatibility"),
+                        CFNumber::from(1).as_CFType(),
+                    ),
+                ])
+            };
             let pixel_buffer = create_with_bytes(
                 WIDTH,
                 HEIGHT,
                 FourCharCode::from_str("BGRA").unwrap(),
                 vec![PIXEL_VALUE; SIZE],
                 BYTE_PER_ROW,
-                ptr::null(),
+                pixel_buffer_attributes.as_concrete_TypeRef(),
             )?;
 
             assert_eq!(get_width(&pixel_buffer), WIDTH);
