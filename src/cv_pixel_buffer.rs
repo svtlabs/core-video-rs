@@ -6,7 +6,7 @@ mod internal {
     use core_foundation::base::{kCFAllocatorDefault, CFAllocatorRef, CFTypeID, TCFType};
     use core_foundation::dictionary::CFDictionaryRef;
     use core_foundation::{declare_TCFType, impl_TCFType};
-    use core_utils_rs::ref_con::{trampoline, ClosureCaller, ClosurePointer};
+    use core_utils_rs::ref_con::{create_trampoline, TrampolineCallback, TrampolineRefcon};
     use four_char_code::FourCharCode;
     use io_surface::IOSurfaceRef;
     use std::ffi::c_void;
@@ -99,8 +99,8 @@ mod internal {
             pixel_format_type: OSType,
             base_address: *const u8,
             bytes_per_row: usize,
-            raw_release_callback: ClosureCaller,
-            raw_release_ref_con: ClosurePointer,
+            raw_release_callback: TrampolineCallback,
+            raw_release_ref_con: TrampolineRefcon,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
         ) -> CVReturn;
@@ -117,8 +117,8 @@ mod internal {
             plane_width: *const usize,
             plane_height: *const usize,
             plane_bytes_per_row: *const usize,
-            release_callback: ClosureCaller,
-            release_ref_con: ClosurePointer,
+            release_callback: TrampolineCallback,
+            release_ref_con: TrampolineRefcon,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
         ) -> CVReturn;
@@ -195,7 +195,7 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let (caller, closure) = trampoline(move || {
+        let (caller, closure) = create_trampoline(move || {
             release_callback(
                 release_ref_con,
                 data_pointer.data,
@@ -242,10 +242,9 @@ mod internal {
             return Err(CVPixelBufferError::InvalidSize);
         }
 
-
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-        let (caller, closure) = trampoline(move || {
+        let (caller, closure) = create_trampoline(|| {
             println!("Release callback called");
         });
         unsafe {
