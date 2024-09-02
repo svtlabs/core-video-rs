@@ -146,7 +146,7 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let (caller, closure) = create_trampoline(|| {
+        let (caller, closure) = create_trampoline(|_| {
             println!("Release callback called");
         });
         unsafe {
@@ -197,7 +197,7 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let (caller, closure) = create_trampoline(move || {
+        let (caller, closure) = create_trampoline(move |_| {
             release_callback(
                 release_ref_con,
                 data_pointer.data,
@@ -246,7 +246,7 @@ mod internal {
 
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-        let (caller, closure) = create_trampoline(|| {
+        let (caller, closure) = create_trampoline(|_| {
             println!("Release callback called");
         });
         unsafe {
@@ -289,7 +289,7 @@ mod internal {
 
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-        let (caller, closure) = create_trampoline(move || {
+        let (caller, closure) = create_trampoline(move |_| {
             release_callback(release_ref_con, base_address);
         });
         unsafe {
