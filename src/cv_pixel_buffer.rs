@@ -6,7 +6,7 @@ mod internal {
     use core_foundation::base::{kCFAllocatorDefault, CFAllocatorRef, CFTypeID, TCFType};
     use core_foundation::dictionary::CFDictionaryRef;
     use core_foundation::{declare_TCFType, impl_TCFType};
-    use core_utils_rs::ref_con::{create_trampoline, TrampolineCallback, TrampolineRefcon};
+    use core_utils_rs::trampoline::{create_trampoline, TrampolineCallback, TrampolineRefcon};
     use four_char_code::FourCharCode;
     use io_surface::IOSurfaceRef;
     use std::ffi::c_void;
