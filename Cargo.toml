@@ -1,6 +1,7 @@
 [package]
 name = "core-video-rs"
 description = "Rust wrapper for apple's CoreVideo framework"
+keywords = ["screencapture", "screencapturekit", "macos"]
 categories = [
   "external-ffi-bindings",
   "multimedia",
@@ -10,17 +11,15 @@ categories = [
 authors = ["Per Johansson <mail@perjohansson.net>"]
 repository = "https://github.com/svtlabs/core-video-rs"
 homepage = "https://github.com/svtlabs"
-rust-version = "1.72"
 license = "MIT OR Apache-2.0"
-
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 
 [dependencies]
-core-foundation = "0.9"
-core-graphics = "0.23"
+core-foundation = "0.10"
+core-graphics = "0.24"
 core-utils-rs = { path = "../core-utils-rs" }
 four-char-code = { version = "2", default-features = false }
-io-surface = { version = "0.15" }
+io-surface = { version = "0.16" }
 thiserror = "1"

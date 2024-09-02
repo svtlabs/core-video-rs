@@ -146,32 +146,34 @@ mod internal {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        todo!();
-        // unsafe {
-        //     let result = CVPixelBufferCreateWithPlanarBytes(
-        //         kCFAllocatorDefault,
-        //         width,
-        //         height,
-        //         pixel_format_type.as_u32(),
-        //         data_ptr,
-        //         data_size,
-        //         number_of_planes,
-        //         base_addresses,
-        //         plane_width,
-        //         plane_height,
-        //         plane_bytes_per_row,
-        //         None,
-        //         None,
-        //         pixel_buffer_attributes,
-        //         &mut pixel_buffer_out,
-        //     );
-        //
-        //     if result == CV_RETURN_SUCCESS {
-        //         Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
-        //     } else {
-        //         Err(CVPixelBufferError::from(result))
-        //     }
-        // }
+        let (caller, closure) = create_trampoline(|| {
+            println!("Release callback called");
+        });
+        unsafe {
+            let result = CVPixelBufferCreateWithPlanarBytes(
+                kCFAllocatorDefault,
+                width,
+                height,
+                pixel_format_type.as_u32(),
+                data_ptr,
+                data_size,
+                number_of_planes,
+                base_addresses,
+                plane_width,
+                plane_height,
+                plane_bytes_per_row,
+                caller,
+                closure,
+                pixel_buffer_attributes,
+                &mut pixel_buffer_out,
+            );
+
+            if result == CV_RETURN_SUCCESS {
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+            } else {
+                Err(CVPixelBufferError::from(result))
+            }
+        }
     }
     pub fn create_with_planar_bytes_and_release_callback<TRefCon, TReleaseCallback>(
         width: usize,
@@ -273,13 +275,13 @@ mod internal {
         pixel_format_type: FourCharCode,
         base_address: Vec<u8>,
         bytes_per_row: usize,
-        mut release_callback: TReleaseCallback,
+        release_callback: TReleaseCallback,
         release_ref_con: TRefCon,
         pixel_buffer_attributes: CFDictionaryRef,
     ) -> Result<CVPixelBuffer, CVPixelBufferError>
     where
         TRefCon: 'static,
-        TReleaseCallback: FnMut(TRefCon, Vec<u8>) + 'static,
+        TReleaseCallback: FnOnce(TRefCon, Vec<u8>) + 'static,
     {
         if base_address.len() < bytes_per_row * height {
             return Err(CVPixelBufferError::InvalidSize);
@@ -287,29 +289,28 @@ mod internal {
 
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-
-        todo!();
-        // unsafe {
-        //     let result = CVPixelBufferCreateWithBytes(
-        //         kCFAllocatorDefault,
-        //         width,
-        //         height,
-        //         pixel_format_type.as_u32(),
-        //         base_address_ptr,
-        //         bytes_per_row,
-        //         trampoline.caller,
-        //         trampoline.closure,
-        //         pixel_buffer_attributes,
-        //         &mut pixel_buffer_out,
-        //     );
-        //     if result == CV_RETURN_SUCCESS {
-        //         let mut px = CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out);
-        //         px.store_trampoline(trampoline);
-        //         Ok(px)
-        //     } else {
-        //         Err(CVPixelBufferError::from(result))
-        //     }
-        // }
+        let (caller, closure) = create_trampoline(move || {
+            release_callback(release_ref_con, base_address);
+        });
+        unsafe {
+            let result = CVPixelBufferCreateWithBytes(
+                kCFAllocatorDefault,
+                width,
+                height,
+                pixel_format_type.as_u32(),
+                base_address_ptr,
+                bytes_per_row,
+                caller,
+                closure,
+                pixel_buffer_attributes,
+                &mut pixel_buffer_out,
+            );
+            if result == CV_RETURN_SUCCESS {
+                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+            } else {
+                Err(CVPixelBufferError::from(result))
+            }
+        }
     }
     fn create_with_io_surface(
         surface: IOSurfaceRef,
@@ -521,8 +522,8 @@ mod internal {
                 BYTE_PER_ROW,
                 move |refcon, address| {
                     println!(
-                        "Release callback called:{:?} {:?} {:?}",
-                        move_into_closure, refcon, address
+                        "Release callback called:{:?} {:?} {:p}",
+                        move_into_closure, refcon, &address
                     );
                 },
                 32,
