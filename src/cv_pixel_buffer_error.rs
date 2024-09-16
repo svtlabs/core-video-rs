@@ -63,6 +63,12 @@ pub enum CVPixelBufferError<TUnknown = OSStatus> {
     InvalidPoolAttributes,
     #[error("A scan hasn't completely traversed the CVBufferPool due to a concurrent operation.)")]
     Retry,
+    #[error("Could not get base address of cv pixel buffer")]
+    BaseAddress,
+    #[error("Could not lock base address of cv pixel buffer")]
+    Lock,
+    #[error("Could not unlock base address of cv pixel buffer")]
+    Unlock,
     #[error("An unknown error occurred with code {0}")]
     UnknownError(TUnknown),
 }
