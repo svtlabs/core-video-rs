@@ -116,15 +116,27 @@ impl MutLockTrait<BaseAddressGuard, CVPixelBufferError> for CVPixelBuffer {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::cv_pixel_buffer::CVPixelBuffer;
-//
-//     #[test]
-//     fn test_lock() {
-//         // let pb = CVPixelBuffer::new();
-//     }
-//
-//     #[test]
-//     fn test_lock_mut() {}
-// }
+#[cfg(test)]
+mod tests {
+    use core_utils_rs::lock::LockTrait;
+    use four_char_code::FourCharCode;
+
+    use crate::{
+        cv_pixel_buffer::CVPixelBuffer, cv_pixel_buffer_attributes::PixelBufferAttributes,
+    };
+
+    #[test]
+    fn test_lock() {
+        let pb = CVPixelBuffer::create(
+            18,
+            8 ,
+            FourCharCode::from_str("BGRA").unwrap(),
+            PixelBufferAttributes::default(),
+        )
+        .unwrap();
+        println!("AA:{}", pb.get_bytes_per_row());
+    }
+
+    #[test]
+    fn test_lock_mut() {}
+}

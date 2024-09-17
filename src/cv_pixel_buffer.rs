@@ -10,7 +10,9 @@ mod internal {
     use core_foundation::string::CFString;
     use core_foundation::{declare_TCFType, impl_TCFType};
     use core_graphics::display::CFDictionary;
-    use core_utils_rs::trampoline::{create_trampoline, TrampolineCallback, TrampolineRefcon};
+    use core_utils_rs::trampoline::{
+        create_left_trampoline, TrampolineLeftCallback, TrampolineRefcon,
+    };
     use four_char_code::FourCharCode;
     use io_surface::{IOSurface, IOSurfaceRef};
     use std::ffi::c_void;
@@ -44,7 +46,7 @@ mod internal {
             pixel_format_type: OSType,
             base_address: *const u8,
             bytes_per_row: usize,
-            raw_release_callback: TrampolineCallback,
+            raw_release_callback: TrampolineLeftCallback,
             raw_release_ref_con: TrampolineRefcon,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
@@ -62,7 +64,7 @@ mod internal {
             plane_width: *const usize,
             plane_height: *const usize,
             plane_bytes_per_row: *const usize,
-            release_callback: TrampolineCallback,
+            release_callback: TrampolineLeftCallback,
             release_ref_con: TrampolineRefcon,
             pixel_buffer_attributes: CFDictionaryRef,
             pixel_buffer_out: *mut CVPixelBufferRef,
@@ -92,7 +94,7 @@ mod internal {
             let plane_width = data_pointer.plane_width();
             let plane_height = data_pointer.plane_height();
             let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-            let (caller, closure) = create_trampoline(move |param| {
+            let (caller, closure) = create_left_trampoline(move |param| {
                 println!("Release callback called, {:p}", &param);
             });
             let pixel_buffer_attributes: CFDictionary<CFString, CFType> =
@@ -145,7 +147,7 @@ mod internal {
             let plane_width = data_pointer.plane_width();
             let plane_height = data_pointer.plane_height();
             let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-            let (caller, closure) = create_trampoline(move |_| {
+            let (caller, closure) = create_left_trampoline(move |_| {
                 println!("Release callback called, {:?}", data_size);
 
                 release_callback(
@@ -198,7 +200,7 @@ mod internal {
 
             let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
             let base_address_ptr = base_address.as_ptr();
-            let (caller, closure) = create_trampoline(|_| {
+            let (caller, closure) = create_left_trampoline(|_| {
                 println!("Release callback called");
             });
 
@@ -244,7 +246,7 @@ mod internal {
 
             let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
             let base_address_ptr = base_address.as_ptr();
-            let (caller, closure) = create_trampoline(move |_| {
+            let (caller, closure) = create_left_trampoline(move |_| {
                 release_callback(release_ref_con, base_address);
             });
             unsafe {
@@ -297,6 +299,13 @@ mod internal {
             }
 
             unsafe { CVPixelBufferIsPlanar(self.as_concrete_TypeRef()) == 1 }
+        }
+        pub fn get_bytes_per_row(&self) -> usize {
+            extern "C" {
+                fn CVPixelBufferGetBytesPerRow(pixel_buffer_ref: CVPixelBufferRef) -> usize;
+            }
+
+            unsafe { CVPixelBufferGetBytesPerRow(self.as_concrete_TypeRef()) }
         }
         pub fn get_width(&self) -> usize {
             extern "C" {
