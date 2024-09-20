@@ -9,8 +9,10 @@ use core_utils_rs::lock::{
 };
 
 use crate::{
-    cv_pixel_buffer::{CVPixelBuffer, CVPixelBufferRef},
-    cv_pixel_buffer_error::{CVPixelBufferError, CV_RETURN_SUCCESS},
+    cv_pixel_buffer::{
+        error::{CVPixelBufferError, CV_RETURN_SUCCESS},
+        CVPixelBuffer, CVPixelBufferRef,
+    },
     types::CVReturn,
 };
 
@@ -118,18 +120,15 @@ impl MutLockTrait<BaseAddressGuard, CVPixelBufferError> for CVPixelBuffer {
 
 #[cfg(test)]
 mod tests {
-    use core_utils_rs::lock::LockTrait;
     use four_char_code::FourCharCode;
 
-    use crate::{
-        cv_pixel_buffer::CVPixelBuffer, cv_pixel_buffer_attributes::PixelBufferAttributes,
-    };
+    use crate::cv_pixel_buffer::{attributes::PixelBufferAttributes, CVPixelBuffer};
 
     #[test]
     fn test_lock() {
         let pb = CVPixelBuffer::create(
             18,
-            8 ,
+            8,
             FourCharCode::from_str("BGRA").unwrap(),
             PixelBufferAttributes::default(),
         )

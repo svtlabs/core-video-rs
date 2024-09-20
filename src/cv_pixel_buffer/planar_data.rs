@@ -3,7 +3,8 @@ use std::{
     ptr::{self, NonNull},
 };
 
-pub struct CVPixelBufferPlanarDataPointer {
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlanarDataPointer {
     pub data: Option<Vec<u8>>,
     pub number_of_planes: usize,
     pub plane_bytes_per_row: Vec<usize>,
@@ -13,15 +14,15 @@ pub struct CVPixelBufferPlanarDataPointer {
     _pin: PhantomPinned,
 }
 
-impl CVPixelBufferPlanarDataPointer {
+impl PlanarDataPointer {
     pub fn new(
         data: Option<Vec<u8>>,
         plane_bytes_per_row: Vec<usize>,
         plane_width: Vec<usize>,
         plane_height: Vec<usize>,
         base_addresses: Vec<NonNull<[u8]>>,
-    ) -> CVPixelBufferPlanarDataPointer {
-        CVPixelBufferPlanarDataPointer {
+    ) -> PlanarDataPointer {
+        PlanarDataPointer {
             data,
             number_of_planes: base_addresses.len(),
             plane_bytes_per_row,
