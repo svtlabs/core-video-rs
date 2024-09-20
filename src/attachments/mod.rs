@@ -3,7 +3,6 @@ pub mod display_dimensions;
 
 use core_foundation::string::CFStringRef;
 
-#[link(name = "CoreVideo", kind = "framework")]
 extern "C" {
 
     // attachement keys

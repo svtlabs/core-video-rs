@@ -1,6 +1,5 @@
 use core_foundation::string::CFStringRef;
 
-#[link(name = "CoreVideo", kind = "framework")]
 extern "C" {
     pub static kCVImageBufferChromaLocation_Left: CFStringRef;
     pub static kCVImageBufferChromaLocation_Center: CFStringRef;

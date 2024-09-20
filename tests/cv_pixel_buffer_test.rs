@@ -1,9 +1,9 @@
 use core_foundation::{base::TCFType, number::CFNumber, string::CFString};
 use core_graphics::display::CFDictionary;
+use core_utils_rs::four_char_code::FourCharCode;
 use core_video_rs::cv_pixel_buffer::{
     attributes::PixelBufferAttributes, planar_data::PlanarDataPointer, CVPixelBuffer,
 };
-use four_char_code::FourCharCode;
 use io_surface::{
     kIOSurfaceBytesPerElement, kIOSurfaceHeight, kIOSurfacePixelFormat, kIOSurfaceWidth,
 };

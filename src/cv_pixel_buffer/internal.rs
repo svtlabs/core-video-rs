@@ -1,4 +1,3 @@
-
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 use crate::cv_pixel_buffer::error::CV_RETURN_SUCCESS;
@@ -8,8 +7,8 @@ use core_foundation::dictionary::CFDictionaryRef;
 use core_foundation::string::CFString;
 use core_foundation::{declare_TCFType, impl_TCFType};
 use core_graphics::display::CFDictionary;
+use core_utils_rs::four_char_code::FourCharCode;
 use core_utils_rs::trampoline::{create_left_trampoline, TrampolineLeftCallback, TrampolineRefcon};
-use four_char_code::FourCharCode;
 use io_surface::{IOSurface, IOSurfaceRef};
 use std::ffi::c_void;
 use std::ptr::{self};
@@ -26,7 +25,6 @@ pub type CVPixelBufferRef = *mut __CVPixelBufferRef;
 declare_TCFType! {CVPixelBuffer, CVPixelBufferRef}
 impl_TCFType!(CVPixelBuffer, CVPixelBufferRef, CVPixelBufferGetTypeID);
 
-#[link(name = "CoreVideo", kind = "framework")]
 extern "C" {
     fn CVPixelBufferGetTypeID() -> CFTypeID;
 }

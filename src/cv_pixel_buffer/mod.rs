@@ -5,8 +5,8 @@ pub mod lock;
 pub mod planar_data;
 
 use attributes::PixelBufferAttributes;
+use core_utils_rs::four_char_code::FourCharCode;
 use error::CVPixelBufferError;
-use four_char_code::FourCharCode;
 use io_surface::IOSurface;
 use planar_data::PlanarDataPointer;
 

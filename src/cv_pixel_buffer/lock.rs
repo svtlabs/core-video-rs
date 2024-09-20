@@ -16,7 +16,7 @@ use crate::{
     types::CVReturn,
 };
 
-#[repr(isize)]
+#[repr(u32)]
 enum CVPixelBufferLockFlags {
     ReadWrite = 0x0,
     ReadOnly = 0x00000001,
@@ -120,7 +120,8 @@ impl MutLockTrait<BaseAddressGuard, CVPixelBufferError> for CVPixelBuffer {
 
 #[cfg(test)]
 mod tests {
-    use four_char_code::FourCharCode;
+
+    use core_utils_rs::four_char_code::FourCharCode;
 
     use crate::cv_pixel_buffer::{attributes::PixelBufferAttributes, CVPixelBuffer};
 

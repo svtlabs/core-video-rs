@@ -20,6 +20,5 @@ edition = "2021"
 core-foundation = "0.10"
 core-graphics = "0.24"
 core-utils-rs = { path = "../core-utils-rs" }
-four-char-code = { version = "2", default-features = false }
 io-surface = { version = "0.16" }
 thiserror = "1"
