@@ -1,142 +1,62 @@
-use std::{
-    ops::{Deref, DerefMut},
-    ptr::NonNull,
-};
+use std::ops::{Deref, DerefMut};
 
-use core_foundation::base::TCFType;
 use core_utils_rs::lock::{
     self, LockGuard, LockGuardTrait, LockTrait, MutLockGuard, MutLockGuardTrait, MutLockTrait,
 };
 
-use crate::{
-    cv_pixel_buffer::{
-        error::{CVPixelBufferError, CV_RETURN_SUCCESS},
-        CVPixelBuffer, CVPixelBufferRef,
-    },
-    types::CVReturn,
-};
+use crate::cv_pixel_buffer::{error::CVPixelBufferError, CVPixelBuffer};
 
-#[repr(u32)]
-enum CVPixelBufferLockFlags {
-    ReadWrite = 0x0,
-    ReadOnly = 0x00000001,
-}
-fn lock_base_address(
-    pix_buf: &CVPixelBuffer,
-    lock_flags: CVPixelBufferLockFlags,
-) -> Result<(), CVPixelBufferError> {
-    extern "C" {
-        fn CVPixelBufferLockBaseAddress(
-            pixelBuffer: CVPixelBufferRef,
-            lockFlags: CVPixelBufferLockFlags,
-        ) -> CVReturn;
-    }
+use super::internal::CVPixelBufferLockFlags;
 
-    let result =
-        unsafe { CVPixelBufferLockBaseAddress(pix_buf.clone().as_concrete_TypeRef(), lock_flags) };
-    if result == CV_RETURN_SUCCESS {
-        Ok(())
-    } else {
-        Err(CVPixelBufferError::from(result))
-    }
-}
+#[derive(Debug)]
+pub struct BaseAddressGuard<'a>(CVPixelBuffer, Option<&'a[u8]>, Option<&'a mut[u8]>) ;
 
-fn get_base_address(pix_buf: &CVPixelBuffer) -> Result<NonNull<u8>, CVPixelBufferError> {
-    extern "C" {
-        fn CVPixelBufferGetBaseAddress(pixelBuffer: CVPixelBufferRef) -> *mut u8;
-    }
-
-    let result = unsafe { CVPixelBufferGetBaseAddress(pix_buf.clone().as_concrete_TypeRef()) };
-    if result.is_null() {
-        Err(CVPixelBufferError::BaseAddress)
-    } else {
-        Ok(NonNull::new(result).unwrap())
-    }
-}
-
-fn unlock_base_address(
-    pix_buf: &CVPixelBuffer,
-    unlock_flags: CVPixelBufferLockFlags,
-) -> Result<(), CVPixelBufferError> {
-    extern "C" {
-        fn CVPixelBufferUnlockBaseAddress(
-            pixelBuffer: CVPixelBufferRef,
-            unlockFlags: CVPixelBufferLockFlags,
-        ) -> CVReturn;
-    }
-
-    let result = unsafe {
-        CVPixelBufferUnlockBaseAddress(pix_buf.clone().as_concrete_TypeRef(), unlock_flags)
-    };
-    if result == CV_RETURN_SUCCESS {
-        Ok(())
-    } else {
-        Err(CVPixelBufferError::from(result))
-    }
-}
-
-struct BaseAddressGuard(CVPixelBuffer, pub NonNull<u8>);
-
-impl Deref for BaseAddressGuard {
+impl Deref for BaseAddressGuard<'_> {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        unsafe { std::slice::from_raw_parts(self.1.as_ptr(), 10) }
+        self.1.expect("Could not get base address")
     }
 }
 
-impl DerefMut for BaseAddressGuard {
-    fn deref_mut(&mut self) -> &mut [u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.1.as_ptr(), 10) }
+impl DerefMut for BaseAddressGuard<'_> {
+    
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.2.as_mut().expect("Could not get base address")
     }
 }
-
-impl LockGuardTrait for BaseAddressGuard {
+impl <'a> LockGuardTrait for BaseAddressGuard<'a> {
     fn unlock(&self) {
-        unlock_base_address(&self.0, CVPixelBufferLockFlags::ReadOnly)
+        self.0
+            .internal_unlock_base_address(CVPixelBufferLockFlags::ReadOnly)
             .expect("Could not unlock base");
     }
 }
-impl MutLockGuardTrait for BaseAddressGuard {
+impl <'a> MutLockGuardTrait for BaseAddressGuard<'a> {
     fn unlock_mut(&mut self) {
-        unlock_base_address(&self.0, CVPixelBufferLockFlags::ReadWrite)
+        self.0
+            .internal_unlock_base_address(CVPixelBufferLockFlags::ReadWrite)
             .expect("Could not unlock base");
     }
 }
 
-impl LockTrait<BaseAddressGuard, CVPixelBufferError> for CVPixelBuffer {
-    fn lock(&self) -> Result<LockGuard<BaseAddressGuard>, CVPixelBufferError> {
-        lock_base_address(self, CVPixelBufferLockFlags::ReadOnly)?;
-        let base_address = get_base_address(self)?;
-        Ok(LockGuard(BaseAddressGuard(self.clone(), base_address)))
+impl <'a> LockTrait<BaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer {
+    fn lock(&self) -> Result<LockGuard<BaseAddressGuard<'a>>, CVPixelBufferError> {
+        self.internal_lock_base_address(CVPixelBufferLockFlags::ReadOnly)?;
+        Ok(LockGuard(BaseAddressGuard(
+            self.clone(),
+            self.internal_base_address().ok(),
+            None
+                    
+        )))
     }
 }
-impl MutLockTrait<BaseAddressGuard, CVPixelBufferError> for CVPixelBuffer {
-    fn lock_mut(&mut self) -> Result<lock::MutLockGuard<BaseAddressGuard>, CVPixelBufferError> {
-        lock_base_address(self, CVPixelBufferLockFlags::ReadWrite)?;
-        let base_address = get_base_address(self)?;
-        Ok(MutLockGuard(BaseAddressGuard(self.clone(), base_address)))
+impl <'a> MutLockTrait<BaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer {
+    fn lock_mut(&mut self) -> Result<lock::MutLockGuard<BaseAddressGuard<'a>>, CVPixelBufferError> {
+        self.internal_lock_base_address(CVPixelBufferLockFlags::ReadWrite)?;
+        Ok(MutLockGuard(BaseAddressGuard(
+            self.clone(),
+            None,
+            self.internal_base_address_mut().ok()
+        )))
     }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use core_utils_rs::four_char_code::FourCharCode;
-
-    use crate::cv_pixel_buffer::{attributes::PixelBufferAttributes, CVPixelBuffer};
-
-    #[test]
-    fn test_lock() {
-        let pb = CVPixelBuffer::create(
-            18,
-            8,
-            FourCharCode::from_str("BGRA").unwrap(),
-            PixelBufferAttributes::default(),
-        )
-        .unwrap();
-        println!("AA:{}", pb.get_bytes_per_row());
-    }
-
-    #[test]
-    fn test_lock_mut() {}
 }
