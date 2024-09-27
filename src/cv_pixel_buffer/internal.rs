@@ -2,6 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 use crate::cv_pixel_buffer::error::CV_RETURN_SUCCESS;
 use crate::types::{CVReturn, OSType};
+use core::fmt;
 use core_foundation::base::{kCFAllocatorDefault, CFAllocatorRef, CFType, CFTypeID, TCFType};
 use core_foundation::dictionary::CFDictionaryRef;
 use core_foundation::string::CFString;
@@ -10,7 +11,6 @@ use core_graphics::display::CFDictionary;
 use core_utils_rs::four_char_code::FourCharCode;
 use core_utils_rs::trampoline::{create_left_trampoline, TrampolineLeftCallback, TrampolineRefcon};
 use io_surface::{IOSurface, IOSurfaceRef};
-use core::fmt;
 use std::ffi::c_void;
 use std::fmt::Formatter;
 use std::ptr::{self};
@@ -294,7 +294,7 @@ impl CVPixelBuffer {
             Ok(unsafe { std::slice::from_raw_parts(result, size) })
         }
     }
-    pub(super) fn internal_base_address_mut <'a> (&self) -> Result<&'a mut [u8], CVPixelBufferError> {
+    pub(super) fn internal_base_address_mut<'a>(&self) -> Result<&'a mut [u8], CVPixelBufferError> {
         extern "C" {
             fn CVPixelBufferGetBaseAddress(pixelBuffer: CVPixelBufferRef) -> *mut u8;
         }

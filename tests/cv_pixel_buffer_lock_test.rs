@@ -1,4 +1,4 @@
-use std::{error::Error, io::Write};
+use std::error::Error;
 
 use core_utils_rs::four_char_code::FourCharCode;
 use core_utils_rs::lock::{LockTrait, MutLockTrait};
@@ -18,13 +18,13 @@ fn test_create_lock_write() -> Result<(), Box<dyn Error>> {
 
     {
         let mut b = pixel_buffer.lock_mut()?;
-        b.fill(2);
-        println!("{:?}", b);
+        b.fill(123);
     };
     {
-        let  b = pixel_buffer.lock()?;
-               
-        println!("{:?}", b);
+        let b = pixel_buffer.lock()?;
+        for i in 1..b.len() {
+            assert_eq!(b[i], 123);
+        }
     };
     Ok(())
 }
