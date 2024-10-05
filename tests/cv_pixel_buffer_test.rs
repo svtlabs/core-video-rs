@@ -7,7 +7,7 @@ use core_video_rs::cv_pixel_buffer::{
 use io_surface::{
     kIOSurfaceBytesPerElement, kIOSurfaceHeight, kIOSurfacePixelFormat, kIOSurfaceWidth,
 };
-use std::{error::Error, ptr::NonNull};
+use std::error::Error;
 
 const WIDTH: usize = 100;
 const BYTE_PER_ROW: usize = 100 * 4;
@@ -66,7 +66,7 @@ struct TestMoveStruct {
 #[test]
 fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
     let data = vec![PIXEL_VALUE; SIZE];
-    let base_address = NonNull::from(data.as_slice());
+    let base_addresses = vec![data.clone(), data.clone()];
     let expected_data = data.clone();
     let b = TestMoveStruct { var1: 33 };
     let pixel_buffer = {
@@ -79,7 +79,7 @@ fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
                 vec![BYTE_PER_ROW, BYTE_PER_ROW],
                 vec![WIDTH, WIDTH],
                 vec![HEIGHT, HEIGHT],
-                vec![base_address, base_address],
+                base_addresses,
             ),
             move |refcon, data| {
                 assert_eq!(refcon, 1337);

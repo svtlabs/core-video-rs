@@ -89,8 +89,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static,
-        TReleaseCallback: FnOnce(TRefCon, Vec<u8>) + 'static,
+        TRefCon: 'static + Send,
+        TReleaseCallback: 'static + Send + FnOnce(TRefCon, Vec<u8>),
     {
         Self::internal_create_with_bytes(
             width,
@@ -114,8 +114,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static,
-        TReleaseCallback: FnOnce(TRefCon, PlanarDataPointer) + 'static,
+        TRefCon: 'static + Send,
+        TReleaseCallback: 'static + Send + FnOnce(TRefCon, PlanarDataPointer) + 'static,
     {
         Self::internal_create_with_planar_bytes(
             width,

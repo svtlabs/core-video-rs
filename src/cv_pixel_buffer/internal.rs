@@ -48,8 +48,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static,
-        TReleaseCallback: FnOnce(TRefCon, PlanarDataPointer) + 'static,
+        TRefCon: 'static + Send,
+        TReleaseCallback: 'static + Send + FnOnce(TRefCon, PlanarDataPointer) + 'static,
     {
         extern "C" {
             fn CVPixelBufferCreateWithPlanarBytes(
@@ -120,8 +120,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static,
-        TReleaseCallback: FnOnce(TRefCon, Vec<u8>) + 'static,
+        TRefCon: 'static + Send,
+        TReleaseCallback: 'static + Send + FnOnce(TRefCon, Vec<u8>),
     {
         extern "C" {
             fn CVPixelBufferCreateWithBytes(

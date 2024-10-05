@@ -1,17 +1,13 @@
-use std::{
-    marker::PhantomPinned,
-    ptr::{self, NonNull},
-};
+use std::ptr;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 pub struct PlanarDataPointer {
     pub data: Option<Vec<u8>>,
     pub number_of_planes: usize,
     pub plane_bytes_per_row: Vec<usize>,
     pub plane_width: Vec<usize>,
     pub plane_height: Vec<usize>,
-    pub base_addresses: Vec<NonNull<[u8]>>,
-    _pin: PhantomPinned,
+    pub base_addresses: Vec<Vec<u8>>,
 }
 
 impl PlanarDataPointer {
@@ -20,7 +16,7 @@ impl PlanarDataPointer {
         plane_bytes_per_row: Vec<usize>,
         plane_width: Vec<usize>,
         plane_height: Vec<usize>,
-        base_addresses: Vec<NonNull<[u8]>>,
+        base_addresses: Vec<Vec<u8>>,
     ) -> PlanarDataPointer {
         PlanarDataPointer {
             data,
@@ -29,7 +25,6 @@ impl PlanarDataPointer {
             plane_width,
             plane_height,
             base_addresses,
-            _pin: PhantomPinned,
         }
     }
     pub fn number_of_planes(&self) -> usize {
