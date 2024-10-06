@@ -1,17 +1,20 @@
 pub mod attributes;
 pub mod error;
-pub mod internal;
 pub mod lock;
 pub mod planar_data;
+mod internal_base;
+mod internal_create;
+mod internal_lock;
+mod internal_props;
 
 use attributes::PixelBufferAttributes;
 use core_utils_rs::four_char_code::FourCharCode;
 use error::CVPixelBufferError;
+pub use internal_base::CVPixelBuffer;
 use io_surface::IOSurface;
 use planar_data::PlanarDataPointer;
 
-pub use internal::{CVPixelBuffer, CVPixelBufferRef};
-impl CVPixelBuffer {
+impl <'a> CVPixelBuffer<'a> {
     pub fn is_planar(&self) -> bool {
         self.internal_is_planar()
     }
@@ -89,8 +92,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static + Send,
-        TReleaseCallback: 'static + Send + FnOnce(TRefCon, Vec<u8>),
+        TRefCon: 'a + Send,
+        TReleaseCallback: 'a + Send + FnOnce(TRefCon, Vec<u8>),
     {
         Self::internal_create_with_bytes(
             width,
@@ -114,8 +117,8 @@ impl CVPixelBuffer {
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError>
     where
-        TRefCon: 'static + Send,
-        TReleaseCallback: 'static + Send + FnOnce(TRefCon, PlanarDataPointer) + 'static,
+        TRefCon: 'a + Send,
+        TReleaseCallback: 'a + Send + FnOnce(TRefCon, PlanarDataPointer)
     {
         Self::internal_create_with_planar_bytes(
             width,

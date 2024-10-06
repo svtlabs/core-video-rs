@@ -68,6 +68,7 @@ fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
     let data = vec![PIXEL_VALUE; SIZE];
     let base_addresses = vec![data.clone(), data.clone()];
     let expected_data = data.clone();
+
     let b = TestMoveStruct { var1: 33 };
     let pixel_buffer = {
         CVPixelBuffer::create_with_planar_bytes_release_cb(
@@ -81,9 +82,10 @@ fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
                 vec![HEIGHT, HEIGHT],
                 base_addresses,
             ),
-            move |refcon, data| {
+            |refcon, data| {
+                let a = &b;
                 assert_eq!(refcon, 1337);
-                assert_eq!(b.var1, 33);
+                assert_eq!(a.var1, 33);
                 assert_eq!(data.data_size(), SIZE);
                 assert_eq!(data.number_of_planes(), 2);
                 assert_eq!(data.data.unwrap(), expected_data);
@@ -93,6 +95,7 @@ fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
             PixelBufferAttributes::default(),
         )
     }?;
+
     assert!(pixel_buffer.is_planar());
     assert_eq!(pixel_buffer.get_width(), WIDTH);
     assert_eq!(pixel_buffer.get_height(), HEIGHT);
