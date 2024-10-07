@@ -5,7 +5,7 @@ use crate::cv_pixel_buffer::internal_base::CVPixelBufferRef;
 use super::internal_base::CVPixelBuffer;
 
 
-impl <'a> CVPixelBuffer<'a> {
+impl  CVPixelBuffer {
     pub(super) fn internal_is_planar(&self) -> bool {
         extern "C" {
             fn CVPixelBufferIsPlanar(pixel_buffer_ref: CVPixelBufferRef) -> i32;

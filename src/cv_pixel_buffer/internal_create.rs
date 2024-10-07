@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
+use super::internal_base::CVPixelBuffer;
 use crate::cv_pixel_buffer::error::CV_RETURN_SUCCESS;
 use crate::cv_pixel_buffer::internal_base::CVPixelBufferRef;
-use super::internal_base::CVPixelBuffer;
 use crate::types::{CVReturn, OSType};
 use core_foundation::base::{kCFAllocatorDefault, CFAllocatorRef, CFType, TCFType};
 use core_foundation::dictionary::CFDictionaryRef;
@@ -11,25 +11,40 @@ use core_graphics::display::CFDictionary;
 use core_utils_rs::four_char_code::FourCharCode;
 use core_utils_rs::trampoline::{create_left_trampoline, TrampolineLeftCallback, TrampolineRefcon};
 use io_surface::{IOSurface, IOSurfaceRef};
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::ptr::{self};
 
 use super::attributes::PixelBufferAttributes;
 use super::error::CVPixelBufferError;
 use super::planar_data::PlanarDataPointer;
 
-impl<'a> CVPixelBuffer<'a> {
-    pub(super) fn internal_create_with_planar_bytes<TRefCon, TReleaseCallback>(
+#[derive(Debug)]
+pub struct CVPixelBufferWithLifetime<'a>(pub CVPixelBuffer, pub PhantomData<&'a ()>);
+
+impl<'a> Deref for CVPixelBufferWithLifetime<'a> {
+    type Target = CVPixelBuffer;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl<'a> DerefMut for CVPixelBufferWithLifetime<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl CVPixelBuffer {
+    pub(super) fn internal_create_with_planar_bytes<'a, TReleaseCallback>(
         width: usize,
         height: usize,
         pixel_format_type: FourCharCode,
         data_pointer: PlanarDataPointer,
         release_callback: TReleaseCallback,
-        release_ref_con: TRefCon,
         pixel_buffer_attributes: PixelBufferAttributes,
-    ) -> Result<Self, CVPixelBufferError>
+    ) -> Result<CVPixelBufferWithLifetime<'a>, CVPixelBufferError>
     where
-        TRefCon: 'a + Send,
-        TReleaseCallback: 'a + Send + FnOnce(TRefCon, PlanarDataPointer),
+        TReleaseCallback: 'a + Send + FnOnce(PlanarDataPointer),
     {
         extern "C" {
             fn CVPixelBufferCreateWithPlanarBytes(
@@ -59,8 +74,7 @@ impl<'a> CVPixelBuffer<'a> {
         let plane_width = data_pointer.plane_width();
         let plane_height = data_pointer.plane_height();
         let plane_bytes_per_row = data_pointer.plane_bytes_per_row();
-        let (caller, closure) =
-            create_left_trampoline(move |_| release_callback(release_ref_con, data_pointer));
+        let (caller, closure) = create_left_trampoline(move |_| release_callback(data_pointer));
         let pixel_buffer_attributes: CFDictionary<CFString, CFType> =
             pixel_buffer_attributes.into();
         unsafe {
@@ -83,25 +97,26 @@ impl<'a> CVPixelBuffer<'a> {
             );
 
             if result == CV_RETURN_SUCCESS {
-                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+                Ok(CVPixelBufferWithLifetime(
+                    CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out),
+                    PhantomData,
+                ))
             } else {
                 Err(CVPixelBufferError::from(result))
             }
         }
     }
-    pub(super) fn internal_create_with_bytes<TRefCon, TReleaseCallback>(
+    pub(super) fn internal_create_with_bytes<'a, TReleaseCallback>(
         width: usize,
         height: usize,
         pixel_format_type: FourCharCode,
         base_address: Vec<u8>,
         bytes_per_row: usize,
         release_callback: TReleaseCallback,
-        release_ref_con: TRefCon,
         pixel_buffer_attributes: PixelBufferAttributes,
-    ) -> Result<Self, CVPixelBufferError>
+    ) -> Result<CVPixelBufferWithLifetime<'a>, CVPixelBufferError>
     where
-        TRefCon: 'a + Send,
-        TReleaseCallback: 'a + Send + FnOnce(TRefCon, Vec<u8>),
+        TReleaseCallback: 'a + Send + FnOnce(Vec<u8>),
     {
         extern "C" {
             fn CVPixelBufferCreateWithBytes(
@@ -124,9 +139,7 @@ impl<'a> CVPixelBuffer<'a> {
 
         let mut pixel_buffer_out: CVPixelBufferRef = ptr::null_mut();
         let base_address_ptr = base_address.as_ptr();
-        let (caller, closure) = create_left_trampoline(move |_| {
-            release_callback(release_ref_con, base_address);
-        });
+        let (caller, closure) = create_left_trampoline(move |_| release_callback(base_address));
         unsafe {
             let pixel_buffer_attributes: CFDictionary<CFString, CFType> =
                 pixel_buffer_attributes.into();
@@ -143,7 +156,7 @@ impl<'a> CVPixelBuffer<'a> {
                 &mut pixel_buffer_out,
             );
             if result == CV_RETURN_SUCCESS {
-                Ok(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out))
+                Ok(CVPixelBufferWithLifetime(CVPixelBuffer::wrap_under_create_rule(pixel_buffer_out), PhantomData))
             } else {
                 Err(CVPixelBufferError::from(result))
             }
@@ -153,7 +166,6 @@ impl<'a> CVPixelBuffer<'a> {
         surface: &IOSurface,
         pixel_buffer_attributes: PixelBufferAttributes,
     ) -> Result<Self, CVPixelBufferError> {
-
         extern "C" {
             fn CVPixelBufferCreateWithIOSurface(
                 allocator: CFAllocatorRef,

@@ -1,6 +1,9 @@
 use core_foundation::base::TCFType;
 
-use crate::{cv_pixel_buffer::{error::CV_RETURN_SUCCESS, internal_base::CVPixelBufferRef}, types::CVReturn};
+use crate::{
+    cv_pixel_buffer::{error::CV_RETURN_SUCCESS, internal_base::CVPixelBufferRef},
+    types::CVReturn,
+};
 
 use super::{error::CVPixelBufferError, internal_base::CVPixelBuffer};
 
@@ -9,7 +12,7 @@ pub enum CVPixelBufferLockFlags {
     ReadWrite = 0x0,
     ReadOnly = 0x00000001,
 }
-impl<'a> CVPixelBuffer<'a> {
+impl CVPixelBuffer {
     pub fn internal_lock_base_address(
         &self,
         lock_flags: CVPixelBufferLockFlags,
@@ -49,7 +52,7 @@ impl<'a> CVPixelBuffer<'a> {
             Err(CVPixelBufferError::from(result))
         }
     }
-    pub fn internal_base_address(&self) -> Result<&'a [u8], CVPixelBufferError> {
+    pub fn internal_base_address<'a>(&self) -> Result<&'a [u8], CVPixelBufferError> {
         extern "C" {
             fn CVPixelBufferGetBaseAddress(pixelBuffer: CVPixelBufferRef) -> *mut u8;
         }
@@ -62,7 +65,7 @@ impl<'a> CVPixelBuffer<'a> {
             Ok(unsafe { std::slice::from_raw_parts(result, size) })
         }
     }
-    pub fn internal_base_address_mut(&self) -> Result<&'a mut [u8], CVPixelBufferError> {
+    pub fn internal_base_address_mut<'a>(&self) -> Result<&'a mut [u8], CVPixelBufferError> {
         extern "C" {
             fn CVPixelBufferGetBaseAddress(pixelBuffer: CVPixelBufferRef) -> *mut u8;
         }

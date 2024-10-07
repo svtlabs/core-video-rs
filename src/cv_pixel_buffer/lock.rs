@@ -1,6 +1,5 @@
 use std::{
-    io,
-    ops::{Deref, DerefMut},
+    io, ops::{Deref, DerefMut}
 };
 
 use core_utils_rs::lock::{
@@ -14,7 +13,7 @@ use super::internal_lock::CVPixelBufferLockFlags;
 
 
 #[derive(Debug)]
-pub struct BaseAddressGuard<'a>(CVPixelBuffer<'a>, &'a [u8]);
+pub struct BaseAddressGuard<'a>(CVPixelBuffer, &'a [u8]);
 
 impl BaseAddressGuard<'_> {
     pub fn as_slice(&self) -> &[u8] {
@@ -32,7 +31,7 @@ impl Deref for BaseAddressGuard<'_> {
 }
 
 #[derive(Debug)]
-pub struct MutBaseAddressGuard<'a>(CVPixelBuffer<'a>, &'a mut [u8]);
+pub struct MutBaseAddressGuard<'a>(CVPixelBuffer, &'a mut [u8]);
 
 impl MutBaseAddressGuard<'_> {
     pub fn as_slice(&self) -> &[u8] {
@@ -77,7 +76,7 @@ impl MutLockGuardTrait for MutBaseAddressGuard<'_> {
     }
 }
 
-impl<'a> LockTrait<BaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer<'a> {
+impl<'a> LockTrait<BaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer {
     fn lock(&self) -> Result<LockGuard<BaseAddressGuard<'a>>, CVPixelBufferError> {
         self.internal_lock_base_address(CVPixelBufferLockFlags::ReadOnly)?;
         Ok(LockGuard(BaseAddressGuard(
@@ -86,7 +85,7 @@ impl<'a> LockTrait<BaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer<'
         )))
     }
 }
-impl<'a> MutLockTrait<MutBaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer<'a> {
+impl<'a> MutLockTrait<MutBaseAddressGuard<'a>, CVPixelBufferError> for CVPixelBuffer {
     fn lock_mut(
         &mut self,
     ) -> Result<lock::MutLockGuard<MutBaseAddressGuard<'a>>, CVPixelBufferError> {

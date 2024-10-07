@@ -82,16 +82,14 @@ fn test_create_with_planar_bytes_and_released() -> Result<(), Box<dyn Error>> {
                 vec![HEIGHT, HEIGHT],
                 base_addresses,
             ),
-            |refcon, data| {
+            |data| {
                 let a = &b;
-                assert_eq!(refcon, 1337);
                 assert_eq!(a.var1, 33);
                 assert_eq!(data.data_size(), SIZE);
                 assert_eq!(data.number_of_planes(), 2);
                 assert_eq!(data.data.unwrap(), expected_data);
                 assert_eq!(data.base_addresses.len(), 2);
             },
-            1337,
             PixelBufferAttributes::default(),
         )
     }?;
@@ -111,12 +109,10 @@ fn test_create_with_bytes_and_release() -> Result<(), Box<dyn Error>> {
         FourCharCode::from_str("BGRA").unwrap(),
         vec![PIXEL_VALUE; SIZE],
         BYTE_PER_ROW,
-        move |refcon, address| {
+        move | address| {
             assert_eq!(move_into_closure, vec![1, 2, 3]);
-            assert_eq!(refcon, 32);
             assert!(!address.is_empty());
         },
-        32,
         PixelBufferAttributes::default(),
     )?;
     assert_eq!(pixel_buffer.get_width(), WIDTH);
